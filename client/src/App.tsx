@@ -194,10 +194,22 @@ function App() {
       });
   }
 
-  async function pushFile(fileContent: file, text: string, commit: string) {
+  async function pushFile(
+    fileContent: {
+      name: string;
+      path: string;
+      sha: string;
+      type: string;
+      url: string;
+    },
+    text: string,
+    commit: string
+  ) {
     await fetch(
-      "http://localhost:4000/pushFile?name=" +
+      "http://localhost:4000/pushFile2?name=" +
         fileContent.name +
+        "&path=" +
+        fileContent.path +
         "&url=" +
         fileContent.url +
         "&sha=" +
@@ -212,15 +224,14 @@ function App() {
           Authorization: "Bearer " + localStorage.getItem("accessToken"), //Bearer access token
         },
       }
-    )
-      .then((response) => {
-        console.log(response);
-        return response.json();
-      })
-      .then((data) => {
-        console.log(data);
-        setCurrentStatus({ ...data });
-      });
+    ).then((response) => {
+      console.log(response);
+      return response.json();
+    });
+    // .then((data) => {
+    //   console.log(data);
+    //   setCurrentStatus({ ...data });
+    // });
     getRepoFiles(currentRepo);
   }
 

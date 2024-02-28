@@ -257,43 +257,107 @@ app.get("/pushFile", async function(req, res){
 app.get("/pushFile2", async function(req, res){
     
     req.get("Authorization");
-    const octokit = new Octokit({
-        auth: req.get("Authorization")
-    })
-    console.log(req.query.content);
     const encodedTest = base64.encode(req.query.content);
-    console.log(encodedTest);
-    console.log(req.query.name);
-    const removePrefix = (req.query.url).substr(22);
+    const str = "https://api.github.com/repos/";
+    const len = str.length;
+    const removePrefix = (req.query.url).substr(len);
     console.log(removePrefix);
-    const partUrl = removePrefix.substr(0, removePrefix.length - 50);
+    const partUrl = removePrefix.substr(0, removePrefix.length - 51);
+
     console.log(partUrl);
-    const newUrl = partUrl+"contents/" + req.query.name;
 
     const commitMessage = req.query.commit;
 
-    
-
-
-    await octokit.request('PUT ' + newUrl, {
-        message: commitMessage,
-
-        committer: {
-          name: 'TPragadeesh',
-          email: 'pragadeeshta@gmail.com'
-        },
-        sha: req.query.sha,
-        content: encodedTest,
-        headers: {
-          'X-GitHub-Api-Version': '2022-11-28'
+    const query1 = `query getBranch(
+        $owner: String!
+        $repo: String!
+        $qualifiedName: String!
+    ) {
+        repository(owner: $owner, name: $repo) {
+            ref(qualifiedName: $qualifiedName) {
+                name
+                target {
+                    oid
+                    commitUrl
+                }
+                refUpdateRule {
+                    viewerCanPush
+                    requiredApprovingReviewCount
+                }
+            }
         }
-      }).then((response) => {
-        return response.data;
+    }`;
+    const query2 = `mutation CreateCommitOnBranch ($commitInput: CreateCommitOnBranchInput!) {
+        createCommitOnBranch(input: $commitInput) {
+            commit {
+                oid
+            }
+            ref {
+                name
+            }
+        }
+    }`
+    let oid;
+    //helo/wo
+    const owner1 = partUrl.slice(0, partUrl.indexOf("/"));
+    const repo1 = partUrl.slice(partUrl.indexOf("/")+1);
+    console.log(owner1);
+    console.log(repo1);
+    const qualifiedName = "refs/heads/main";
+    
+    let variables1 = {owner: owner1, qualifiedName: qualifiedName, repo: repo1};
+
+    await fetch("https://api.github.com/graphql", {
+        method: "POST",
+        headers: {
+            "Content-Type" : "application/json",
+            "Authorization" : req.get("Authorization")
+        },
+        body: JSON.stringify( {query: query1, variables: 
+            variables1 })
+    }).then((response) => {
+        return response.json();
     }).then((data) => {
+        oid = data.data.repository.ref.target.oid;
+        console.log(oid);
         
-        const obj = {name: data.content.path, sha:data.content.sha, url:data.content.git_url, type: data.content.type};
-        console.log(JSON.stringify(obj));
-        res.json(obj);
+    });
+    let variable2 = {
+        commitInput: {
+            branch: {
+                branchName: "main",
+                repositoryNameWithOwner: partUrl,
+            },
+            message: {
+                headline: commitMessage
+            },
+            expectedHeadOid: oid,
+            fileChanges: {
+                additions: [{contents: encodedTest, path:req.query.path}],
+                deletions: []
+            }
+            
+        }
+    };
+
+    console.log(oid);
+    console.log(encodedTest);
+    console.log(req.query.path);
+    console.log(variable2);
+    
+    await fetch("https://api.github.com/graphql", {
+        method: "POST",
+        headers: {
+            "Authorization" : req.get("Authorization")
+        },
+        body: JSON.stringify( {query: query2, variables: 
+            variable2 })
+        
+
+    }).then((response) => {
+        return response.json();
+    }).then((data) => {
+        console.log(data);
     })
 })
 
