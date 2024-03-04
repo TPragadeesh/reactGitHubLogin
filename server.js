@@ -12,6 +12,8 @@ var app = express();
 app.use(cors());
 app.use(bodyParser.json());
 
+const saveArray= [];
+
 //code passed from frontend
 app.get('/getAccessToken', async function (req, res) {
     
@@ -29,6 +31,7 @@ app.get('/getAccessToken', async function (req, res) {
         res.json(data);
     });
 })
+
 
 //get user dat
 //access token as authorization header
@@ -158,8 +161,15 @@ app.get("/getFileContent", async function(req, res){
     //     res.json(contents);
     // })
 
+    for(let i in saveArray){
+        if(saveArray[i].path === req.query.path){
+            console.log("get check");
+            return res.json(base64.decode(saveArray[i].contents));
+        }
+    }
+
     req.get("Authorization");
-    await fetch(req.query.name, {
+    await fetch(req.query.url, {
         method: "GET",
         headers: {
             "Authorization" : req.get("Authorization")
@@ -254,10 +264,24 @@ app.get("/pushFile", async function(req, res){
     // })
     
 })
+
+
+app.get("/saveContent", async function (req, res) {
+    for(let i in saveArray){
+        if(saveArray[i].path === req.query.path){
+            saveArray[i].contents = base64.encode(req.query.content);
+            console.log("old check");
+            return res.sendStatus(200);
+        }
+    }
+    saveArray.push({path: req.query.path, contents: base64.encode(req.query.content)});
+    console.log("new additoin");
+    return res.sendStatus(200);
+})
+
 app.get("/pushFile2", async function(req, res){
-    
+    console.log("please");
     req.get("Authorization");
-    const encodedTest = base64.encode(req.query.content);
     const str = "https://api.github.com/repos/";
     const len = str.length;
     const removePrefix = (req.query.url).substr(len);
@@ -265,7 +289,7 @@ app.get("/pushFile2", async function(req, res){
     const partUrl = removePrefix.substr(0, removePrefix.length - 51);
 
     console.log(partUrl);
-
+    console.log("please again");
     const commitMessage = req.query.commit;
 
     const query1 = `query getBranch(
@@ -333,7 +357,7 @@ app.get("/pushFile2", async function(req, res){
             },
             expectedHeadOid: oid,
             fileChanges: {
-                additions: [{contents: encodedTest, path:req.query.path}],
+                additions: saveArray,
                 deletions: []
             }
             
@@ -341,8 +365,6 @@ app.get("/pushFile2", async function(req, res){
     };
 
     console.log(oid);
-    console.log(encodedTest);
-    console.log(req.query.path);
     console.log(variable2);
     
     await fetch("https://api.github.com/graphql", {
@@ -357,7 +379,9 @@ app.get("/pushFile2", async function(req, res){
     }).then((response) => {
         return response.json();
     }).then((data) => {
+        saveArray.splice(0, saveArray.length);
         console.log(data);
+        res.sendStatus(200);
     })
 })
 

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { openDB } from "idb";
 import reactLogo from "./assets/react.svg";
 import "./App.css";
 import Directory from "./Directory";
@@ -38,6 +39,7 @@ function App() {
   const [currentRepo, setCurrentRepo] = useState<string>("");
   const [repoFiles, setRepoFiles] = useState<file[]>([]);
   const [text, setText] = useState<string>("");
+
   const [currentStatus, setCurrentStatus] = useState<display>({
     name: "",
     url: "",
@@ -174,7 +176,10 @@ function App() {
     url: string;
   }) {
     await fetch(
-      "http://localhost:4000/getFileContent?name=" + fileContent.url,
+      "http://localhost:4000/getFileContent?url=" +
+        fileContent.url +
+        "&path=" +
+        fileContent.path,
       {
         method: "GET",
         headers: {
@@ -193,7 +198,31 @@ function App() {
         console.log(data);
       });
   }
-
+  async function saveContent(
+    fileContent: {
+      name: string;
+      path: string;
+      sha: string;
+      type: string;
+      url: string;
+    },
+    text: string
+  ) {
+    await fetch(
+      "http://localhost:4000/saveContent?path=" +
+        fileContent.path +
+        "&content=" +
+        text,
+      {
+        method: "GET",
+        headers: {
+          Authorization: "Bearer " + localStorage.getItem("accessToken"), //Bearer access token
+        },
+      }
+    ).then((response) => {
+      console.log(response.status);
+    });
+  }
   async function pushFile(
     fileContent: {
       name: string;
@@ -206,16 +235,8 @@ function App() {
     commit: string
   ) {
     await fetch(
-      "http://localhost:4000/pushFile2?name=" +
-        fileContent.name +
-        "&path=" +
-        fileContent.path +
-        "&url=" +
+      "http://localhost:4000/pushFile2?url=" +
         fileContent.url +
-        "&sha=" +
-        fileContent.sha +
-        "&content=" +
-        text +
         "&commit=" +
         commit,
       {
@@ -225,14 +246,29 @@ function App() {
         },
       }
     ).then((response) => {
-      console.log(response);
-      return response.json();
+      console.log(response.status);
     });
     // .then((data) => {
     //   console.log(data);
     //   setCurrentStatus({ ...data });
     // });
     getRepoFiles(currentRepo);
+  }
+  async function useDB() {
+    // Opens the first version of the 'test-db1' database.
+    // If the database does not exist, it will be created.
+    console.log("first");
+    const dbPromise = await openDB("test-db3", 1, {
+      upgrade(db) {
+        console.log("Creating a new object store...");
+
+        // Checks if the object store exists:
+        if (!db.objectStoreNames.contains("people")) {
+          // If the object store does not exist, create it:
+          db.createObjectStore("people", { keyPath: "email" });
+        }
+      },
+    });
   }
 
   useEffect(() => {
@@ -262,39 +298,41 @@ function App() {
   }, []);
 
   return (
-    <div className="App">
-      {localStorage.getItem("accessToken") && (
-        <>
-          <h1>We have the access token</h1>
-          <button
-            onClick={() => {
-              localStorage.removeItem("accessToken");
-              setRerender(!rerender);
-            }}
-          >
-            Logout
-          </button>
-        </>
-      )}
-      <button onClick={loginWithGithub}>Login with github</button>
-      <h3>Get User Data</h3>
-      <button onClick={getUserData}>getuserdata</button>
-      <p>{JSON.stringify(userData)}</p>
-      <button onClick={getAllRepo}>getAllRepo</button>
-      <ul>
-        {repos.map((repo, i) => (
-          <li
-            key={i}
-            onClick={() => {
-              getRepoFiles(repo);
-            }}
-          >
-            {repo}
-          </li>
-        ))}
-      </ul>
-      <p>{currentRepo}</p>
-      {/* <ul>
+    <>
+      <button onClick={useDB}>Indexdb</button>
+      <div className="App">
+        {localStorage.getItem("accessToken") && (
+          <>
+            <h1>We have the access token</h1>
+            <button
+              onClick={() => {
+                localStorage.removeItem("accessToken");
+                setRerender(!rerender);
+              }}
+            >
+              Logout
+            </button>
+          </>
+        )}
+        <button onClick={loginWithGithub}>Login with github</button>
+        <h3>Get User Data</h3>
+        <button onClick={getUserData}>getuserdata</button>
+        <p>{JSON.stringify(userData)}</p>
+        <button onClick={getAllRepo}>getAllRepo</button>
+        <ul>
+          {repos.map((repo, i) => (
+            <li
+              key={i}
+              onClick={() => {
+                getRepoFiles(repo);
+              }}
+            >
+              {repo}
+            </li>
+          ))}
+        </ul>
+        <p>{currentRepo}</p>
+        {/* <ul>
         {repoFiles.map((repoFile, i) => (
           <li
             key={i}
@@ -306,37 +344,41 @@ function App() {
           </li>
         ))}
       </ul> */}
-      <div className="outer">
-        <div className="spacing">
-          <List>
-            <Directory file={explorer} onClick={getFileContent} />
-          </List>
+        <div className="outer">
+          <div className="spacing">
+            <List>
+              <Directory file={explorer} onClick={getFileContent} />
+            </List>
+          </div>
         </div>
-      </div>
 
-      <Tabs variant="enclosed">
-        <TabList>
-          <Tab>{currentStatus.name}</Tab>
-        </TabList>
-        <TabPanels>
-          <TabPanel>
-            <textarea
-              style={{ width: "100%", height: "400px" }}
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-            />
-          </TabPanel>
-        </TabPanels>
-      </Tabs>
-      <input
-        type="text"
-        placeholder="Enter commit message"
-        onChange={(e) => setCommitMessage(e.target.value)}
-      ></input>
-      <button onClick={() => pushFile(currentStatus, text, commitMessage)}>
-        Push
-      </button>
-    </div>
+        <Tabs variant="enclosed">
+          <TabList>
+            <Tab>{currentStatus.name}</Tab>
+          </TabList>
+          <TabPanels>
+            <TabPanel>
+              <textarea
+                style={{ width: "100%", height: "400px" }}
+                value={text}
+                onChange={(e) => setText(e.target.value)}
+              />
+            </TabPanel>
+          </TabPanels>
+        </Tabs>
+
+        <button onClick={() => saveContent(currentStatus, text)}>Save</button>
+
+        <input
+          type="text"
+          placeholder="Enter commit message"
+          onChange={(e) => setCommitMessage(e.target.value)}
+        ></input>
+        <button onClick={() => pushFile(currentStatus, text, commitMessage)}>
+          Push
+        </button>
+      </div>
+    </>
   );
 }
 
